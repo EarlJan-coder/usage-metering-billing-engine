@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { ThemeProvider } from "@/components/shared/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { GUEST_SESSION, SessionProvider } from "@/lib/auth/session";
 
 import "./globals.css";
 
@@ -32,7 +35,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {/* Phase 4 replaces the placeholder with the backend-backed session. */}
+          <SessionProvider value={GUEST_SESSION}>
+            <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+          </SessionProvider>
+          <Toaster position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   );
