@@ -1,0 +1,30 @@
+# Plan execution scratch (superpowers SDD workspace)
+.superpowers/
+
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+build/
+dist/
+
+# Env files (only .env.example is committed)
+.env
+.env*.local
+
+# Logs
+npm-debug.log*
+*.log
+
+# Testing
+coverage/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.tsbuildinfo
+next-env.d.ts
