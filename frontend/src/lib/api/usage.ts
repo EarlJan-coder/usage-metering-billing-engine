@@ -8,12 +8,12 @@ import {
 } from "./normalize";
 
 /**
- * Usage summary + history endpoints (backend-plan §6:
- * GET /usage/summary, GET /usage/history).
+ * Usage endpoints (backend-plan §6: GET /usage, GET /usage/history,
+ * GET /usage/summary).
  *
  * Monetary values are integer minor units (backend-plan §4) — formatted with
- * formatCurrency, never recomputed here. Series are backend-provided points;
- * the frontend only renders them.
+ * formatCurrency, never recomputed here. Series and breakdowns are
+ * backend-provided; the frontend only renders them.
  */
 
 export type MetricPoint = { date: string; value: number };
@@ -45,10 +45,20 @@ export type UsageEvent = {
   type: string;
   createdAt: string | null;
   apiKeyName: string | null;
+  /** Model name when the event carries model metadata (§6E). */
+  model: string | null;
   quantity: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
   /** Event cost in minor units. */
   cost: number | null;
   status: string;
+};
+
+/** One page of usage history plus the backend-reported total (§6E). */
+export type HistoryPage = {
+  events: UsageEvent[];
+  total: number;
 };
 
 function normalizePoints(value: unknown): MetricPoint[] {
@@ -164,7 +174,14 @@ function normalizeEvent(entry: unknown): UsageEvent | null {
     apiKeyName:
       pickString(record, "apiKeyName", "api_key_name", "apiKey", "keyName") ??
       null,
+    model:
+      pickString(record, "model", "modelName", "model_name") ?? null,
     quantity: pickNumber(record, "quantity", "tokens", "count"),
+    inputTokens:
+      pickNumber(record, "inputTokens", "input_tokens", "promptTokens") ?? null,
+    outputTokens:
+      pickNumber(record, "outputTokens", "output_tokens", "completionTokens") ??
+      null,
     cost: pickNumber(record, "cost", "amount", "estimatedCost"),
     status: pickString(record, "status") ?? "recorded",
   };
@@ -183,7 +200,140 @@ export function normalizeEvents(payload: unknown): UsageEvent[] {
   return events;
 }
 
-export type HistoryParams = { limit?: number };
+/** Wraps the event list with the backend-reported row total (§6E). */
+export function normalizeHistoryPage(payload: unknown): HistoryPage {
+  const root = asObject(payload);
+  const events = normalizeEvents(payload);
+  if (!root) return { events, total: events.length };
+
+  const meta = pickObject(root, "meta", "pagination");
+  const total =
+    pickNumber(root, "total", "count", "totalCount", "total_count") ??
+    (meta ? pickNumber(meta, "total", "count", "totalCount") : null) ??
+    events.length;
+  return { events, total };
+}
+
+/** One row of a "usage by X" breakdown table (§6D). */
+export type UsageBreakdownRow = {
+  name: string;
+  apiCalls: number;
+  tokens: number;
+  /** Cost in minor units. */
+  cost: number;
+};
+
+/** Analytics payload for GET /usage (§6D: charts + breakdowns). */
+export type UsageAnalytics = {
+  apiCallsSeries: MetricPoint[];
+  tokensSeries: MetricPoint[];
+  costSeries: MetricPoint[];
+  currency: string;
+  byApiKey: UsageBreakdownRow[];
+  byModel: UsageBreakdownRow[];
+};
+
+function normalizeBreakdown(value: unknown): UsageBreakdownRow[] {
+  if (!Array.isArray(value)) return [];
+  const rows: UsageBreakdownRow[] = [];
+  for (const entry of value) {
+    const record = asObject(entry);
+    if (!record) continue;
+    const name =
+      pickString(record, "name", "key", "apiKey", "api_key", "model", "label") ??
+      null;
+    if (!name) continue;
+    rows.push({
+      name,
+      apiCalls:
+        pickNumber(record, "apiCalls", "api_calls", "calls", "count") ?? 0,
+      tokens:
+        pickNumber(record, "tokens", "aiTokens", "ai_tokens", "value") ?? 0,
+      cost:
+        pickNumber(record, "cost", "amount", "estimatedCost") ?? 0,
+    });
+  }
+  return rows;
+}
+
+export function normalizeAnalytics(payload: unknown): UsageAnalytics {
+  const root = asObject(payload) ?? {};
+  return {
+    apiCallsSeries: normalizePoints(
+      pickArray(root, "apiCallsSeries", "api_calls_series", "apiCalls") ??
+        root.apiCallsSeries,
+    ),
+    tokensSeries: normalizePoints(
+      pickArray(
+        root,
+        "tokensSeries",
+        "tokenSeries",
+        "tokens_series",
+        "aiTokensSeries",
+      ) ?? root.tokensSeries,
+    ),
+    costSeries: normalizePoints(
+      pickArray(root, "costSeries", "cost_series", "costs") ?? root.costSeries,
+    ),
+    currency: pickString(root, "currency") ?? "USD",
+    byApiKey: normalizeBreakdown(
+      pickArray(root, "byApiKey", "by_api_key", "usageByApiKey", "apiKeys") ??
+        root.byApiKey,
+    ),
+    byModel: normalizeBreakdown(
+      pickArray(root, "byModel", "by_model", "usageByModel", "models") ??
+        root.byModel,
+    ),
+  };
+}
+
+/**
+ * Builds `?a=1&b=2`, skipping undefined/null/blank values. Values are
+ * URL-encoded; numbers are stringified.
+ */
+export function buildQueryString(
+  params: Record<string, string | number | null | undefined>,
+): string {
+  const pairs: string[] = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (value === null || value === undefined || value === "") continue;
+    pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  return pairs.length > 0 ? `?${pairs.join("&")}` : "";
+}
+
+export type HistoryParams = {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  /** Inclusive yyyy-MM-dd bounds. */
+  from?: string;
+  to?: string;
+  sort?: string;
+  order?: "asc" | "desc";
+};
+
+/** Maps history filter params onto the backend query contract (§6E). */
+export function buildHistoryQuery(params?: HistoryParams): string {
+  if (!params) return "";
+  return buildQueryString({
+    limit: params.limit,
+    offset: params.offset,
+    search: params.search,
+    from: params.from,
+    to: params.to,
+    sort: params.sort,
+    order: params.order,
+  });
+}
+
+export type Granularity = "daily" | "weekly" | "monthly";
+
+export type AnalyticsParams = {
+  from?: string;
+  to?: string;
+  granularity?: Granularity;
+};
 
 export const usageApi = {
   async summary(): Promise<UsageSummary> {
@@ -191,9 +341,21 @@ export const usageApi = {
     return normalizeSummary(payload);
   },
 
-  async history(params?: HistoryParams): Promise<UsageEvent[]> {
-    const query = params?.limit !== undefined ? `?limit=${params.limit}` : "";
-    const payload = await apiFetch<unknown>(`/usage/history${query}`);
-    return normalizeEvents(payload);
+  /** Analytics for GET /usage: series, breakdowns, date range, granularity. */
+  async analytics(params?: AnalyticsParams): Promise<UsageAnalytics> {
+    const query = buildQueryString({
+      from: params?.from,
+      to: params?.to,
+      granularity: params?.granularity,
+    });
+    const payload = await apiFetch<unknown>(`/usage${query}`);
+    return normalizeAnalytics(payload);
+  },
+
+  async history(params?: HistoryParams): Promise<HistoryPage> {
+    const payload = await apiFetch<unknown>(
+      `/usage/history${buildHistoryQuery(params)}`,
+    );
+    return normalizeHistoryPage(payload);
   },
 };
