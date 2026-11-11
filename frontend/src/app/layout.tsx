@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { GUEST_SESSION, SessionProvider } from "@/lib/auth/session";
+import { SessionProvider } from "@/lib/auth/session";
 
 import "./globals.css";
 
@@ -36,8 +36,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
-          {/* Phase 4 replaces the placeholder with the backend-backed session. */}
-          <SessionProvider value={GUEST_SESSION}>
+          {/* Loads the real session from GET /auth/me (Phase 4). */}
+          <SessionProvider>
             <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
           </SessionProvider>
           <Toaster position="top-right" />

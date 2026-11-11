@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { CreditCard, LogOut, Settings, UserRound } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -27,8 +28,14 @@ function initials(name: string): string {
 /** Header user menu (frontend-plan §5 — User Profile). */
 export function ProfileDropdown() {
   const { user, signOut } = useSession();
+  const router = useRouter();
   const name = user?.name ?? "Account";
   const email = user?.email ?? "Not signed in";
+
+  async function handleSignOut() {
+    await signOut();
+    router.push("/");
+  }
 
   return (
     <DropdownMenu>
@@ -70,10 +77,7 @@ export function ProfileDropdown() {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onSelect={() => void signOut()}
-        >
+        <DropdownMenuItem variant="destructive" onSelect={handleSignOut}>
           <LogOut className="size-4" aria-hidden="true" />
           Sign out
         </DropdownMenuItem>
