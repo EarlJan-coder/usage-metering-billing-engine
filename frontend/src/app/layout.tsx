@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { QueryProvider } from "@/components/shared/query-provider";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -36,10 +37,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
-          {/* Loads the real session from GET /auth/me (Phase 4). */}
-          <SessionProvider>
-            <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-          </SessionProvider>
+          <QueryProvider>
+            {/* Loads the real session from GET /auth/me (Phase 4). */}
+            <SessionProvider>
+              <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+            </SessionProvider>
+          </QueryProvider>
           <Toaster position="top-right" />
         </ThemeProvider>
       </body>
