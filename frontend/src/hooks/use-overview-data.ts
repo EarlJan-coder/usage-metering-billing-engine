@@ -24,6 +24,8 @@ export function useOverviewData() {
   const recent = useQuery({
     queryKey: ["usage", "history", { limit: RECENT_ACTIVITY_LIMIT }],
     queryFn: () => usageApi.history({ limit: RECENT_ACTIVITY_LIMIT }),
+    // The feed renders events only; the total lives on the page envelope.
+    select: (page) => page.events,
   });
 
   const refetchAll = () =>
