@@ -51,4 +51,36 @@ export const subscriptionsApi = {
     const payload = await apiFetch<unknown>("/subscriptions/current");
     return normalizeSubscription(payload);
   },
+
+  /**
+   * Starts Stripe Checkout through the backend (backend-plan §6:
+   * POST /subscriptions/checkout). Returns the hosted-page URL to redirect
+   * to; null when the backend omits it. The redirect proves nothing —
+   * subscription state only changes via verified webhooks (§5G).
+   */
+  async checkout(input: { planId: string }): Promise<{ url: string | null }> {
+    const payload = await apiFetch<unknown>("/subscriptions/checkout", {
+      method: "POST",
+      body: { planId: input.planId },
+    });
+    const root = asObject(payload);
+    if (!root) return { url: null };
+    const session = pickObject(root, "session", "checkoutSession", "data");
+    const url =
+      pickString(root, "url", "checkoutUrl", "checkout_url") ??
+      (session ? pickString(session, "url", "checkoutUrl") : null);
+    return { url };
+  },
+
+  /**
+   * Cancels the current subscription (backend-plan §6: POST
+   * /subscriptions/cancel). Returns the updated subscription when the
+   * backend echoes it, else null — callers refetch /subscriptions/current.
+   */
+  async cancel(): Promise<CurrentSubscription | null> {
+    const payload = await apiFetch<unknown>("/subscriptions/cancel", {
+      method: "POST",
+    });
+    return normalizeSubscription(payload);
+  },
 };

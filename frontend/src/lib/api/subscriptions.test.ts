@@ -78,4 +78,55 @@ describe("subscriptionsApi endpoints (backend-plan section 6)", () => {
     expect((fetchSpy.mock.calls[0]![1] as RequestInit).method).toBe("GET");
     expect(result?.planName).toBe("Free");
   });
+
+  test("checkout POSTs /subscriptions/checkout with the plan id", async () => {
+    const fetchSpy = stubFetch(async () =>
+      okResponse({ url: "https://checkout.stripe.com/c/pay/cs_test_123" }),
+    );
+
+    const result = await subscriptionsApi.checkout({ planId: "pro" });
+
+    expect(fetchSpy.mock.calls[0]![0]).toBe("/subscriptions/checkout");
+    expect((fetchSpy.mock.calls[0]![1] as RequestInit).method).toBe("POST");
+    expect(
+      JSON.parse((fetchSpy.mock.calls[0]![1] as RequestInit).body as string),
+    ).toEqual({ planId: "pro" });
+    expect(result.url).toBe("https://checkout.stripe.com/c/pay/cs_test_123");
+  });
+
+  test("checkout reads checkoutUrl/session.url aliases", async () => {
+    stubFetch(async () =>
+      okResponse({ session: { url: "https://checkout.stripe.com/pay/cs_test_9" } }),
+    );
+    expect((await subscriptionsApi.checkout({ planId: "pro" })).url).toBe(
+      "https://checkout.stripe.com/pay/cs_test_9",
+    );
+
+    stubFetch(async () =>
+      okResponse({ checkout_url: "https://checkout.stripe.com/pay/cs_test_8" }),
+    );
+    expect((await subscriptionsApi.checkout({ planId: "pro" })).url).toBe(
+      "https://checkout.stripe.com/pay/cs_test_8",
+    );
+  });
+
+  test("checkout returns a null url when the backend sends no redirect", async () => {
+    stubFetch(async () => okResponse({ ok: true }));
+
+    const result = await subscriptionsApi.checkout({ planId: "pro" });
+
+    expect(result.url).toBeNull();
+  });
+
+  test("cancel POSTs /subscriptions/cancel", async () => {
+    const fetchSpy = stubFetch(async () =>
+      okResponse({ plan: { name: "Pro" }, status: "canceled" }),
+    );
+
+    const result = await subscriptionsApi.cancel();
+
+    expect(fetchSpy.mock.calls[0]![0]).toBe("/subscriptions/cancel");
+    expect((fetchSpy.mock.calls[0]![1] as RequestInit).method).toBe("POST");
+    expect(result?.status).toBe("canceled");
+  });
 });

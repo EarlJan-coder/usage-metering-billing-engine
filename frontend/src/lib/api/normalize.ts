@@ -65,3 +65,18 @@ export function pickObject(
   }
   return null;
 }
+
+/**
+ * Boolean from true/false, "true"/"false", 1/0 — defaults to false.
+ * Used for plan flags like isDefault where backends vary in encoding.
+ */
+export function pickBooleanLike(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") return true;
+    if (normalized === "false" || normalized === "0") return false;
+  }
+  return false;
+}
