@@ -32,7 +32,10 @@ export function EmptyState({
           <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
       ) : null}
-      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+      {/* h2: EmptyState renders directly under PageHeader's h1 — an h3 here
+          skips a level (axe heading-order). Card titles are divs, so h2 is
+          the correct next level on every page that uses EmptyState. */}
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       {description ? (
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">
           {description}
