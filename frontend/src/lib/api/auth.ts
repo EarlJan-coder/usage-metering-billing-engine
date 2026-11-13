@@ -132,6 +132,17 @@ function captureToken(payload: unknown): void {
   setBearerToken(extractToken(payload));
 }
 
+/**
+ * Refreshes the token from GET /auth/me — but only when the payload
+ * actually carries one. Cookie-mode backends omit it, and clearing here
+ * would clobber the token /auth/login just issued (JWT-in-body mode,
+ * backend-plan §6).
+ */
+function refreshTokenIfPresent(payload: unknown): void {
+  const token = extractToken(payload);
+  if (token) setBearerToken(token);
+}
+
 export const authApi = {
   async register(input: RegisterInput): Promise<unknown> {
     const payload = await apiFetch<unknown>("/auth/register", {
@@ -161,7 +172,7 @@ export const authApi = {
 
   async me(): Promise<unknown> {
     const payload = await apiFetch<unknown>("/auth/me");
-    captureToken(payload);
+    refreshTokenIfPresent(payload);
     return payload;
   },
 

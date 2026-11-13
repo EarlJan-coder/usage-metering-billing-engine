@@ -130,3 +130,35 @@ describe("subscriptionsApi endpoints (backend-plan section 6)", () => {
     expect(result?.status).toBe("canceled");
   });
 });
+
+describe("normalizeSubscription cancelAtPeriodEnd encodings", () => {
+  test("reads boolean, string, and numeric encodings alike", () => {
+    expect(
+      normalizeSubscription({
+        planName: "Pro",
+        cancel_at_period_end: true,
+      })?.cancelAtPeriodEnd,
+    ).toBe(true);
+    expect(
+      normalizeSubscription({
+        planName: "Pro",
+        cancel_at_period_end: "true",
+      })?.cancelAtPeriodEnd,
+    ).toBe(true);
+    expect(
+      normalizeSubscription({
+        planName: "Pro",
+        cancelAtPeriodEnd: 1,
+      })?.cancelAtPeriodEnd,
+    ).toBe(true);
+    expect(
+      normalizeSubscription({
+        planName: "Pro",
+        cancel_at_period_end: "false",
+      })?.cancelAtPeriodEnd,
+    ).toBe(false);
+    expect(
+      normalizeSubscription({ planName: "Pro" })?.cancelAtPeriodEnd,
+    ).toBe(false);
+  });
+});

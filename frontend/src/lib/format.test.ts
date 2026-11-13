@@ -72,3 +72,15 @@ describe("maskApiKey", () => {
     expect(maskApiKey("short")).toBe("sho…rt");
   });
 });
+
+describe("formatCurrency resilience (malformed backend codes)", () => {
+  test("does not throw on an invalid currency code", () => {
+    expect(() => formatCurrency(1234, "usdd")).not.toThrow();
+    expect(() => formatCurrency(1234, "")).not.toThrow();
+  });
+
+  test("falls back to plain decimal formatting", () => {
+    expect(formatCurrency(1234, "usdd")).toBe("12.34");
+    expect(formatCurrency(1234, "")).toBe("12.34");
+  });
+});

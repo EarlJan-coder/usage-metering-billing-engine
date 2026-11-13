@@ -56,6 +56,7 @@ import { AdminPage } from "./app/(dashboard)/admin/admin-page";
 import { BillingPage } from "./app/(dashboard)/billing/billing-page";
 import { OverviewDashboard } from "./app/(dashboard)/overview/overview-dashboard";
 import { SettingsPage } from "./app/(dashboard)/settings/settings-page";
+import { UsageHistory } from "./app/(dashboard)/usage/usage-history";
 import { DashboardLayout } from "./components/layout/dashboard-layout";
 
 function okResponse(data: unknown, status = 200): Response {
@@ -166,6 +167,11 @@ describe("accessibility (axe-core)", () => {
 
   test("overview dashboard", async () => {
     const { container } = await renderAxe(<OverviewDashboard />);
+    expectNoViolations(await axe(container));
+  });
+
+  test("usage history (dense table, filters, export)", async () => {
+    const { container } = await renderAxe(<UsageHistory />);
     expectNoViolations(await axe(container));
   });
 });

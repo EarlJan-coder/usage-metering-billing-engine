@@ -178,11 +178,13 @@ describe("UsageHistory", () => {
     const user = userEvent.setup();
 
     renderHistory();
-    const row = await screen.findByRole("button", {
-      name: /Open details for row evt_1/,
-    });
+    // Rows keep native table semantics (no role="button"/aria-label on
+    // <tr> — see data-table); find the row through its cell content.
+    const cell = await screen.findByText("evt_1");
+    const row = cell.closest("tr");
+    expect(row).not.toBeNull();
 
-    await user.click(row);
+    await user.click(row!);
 
     const drawer = await screen.findByRole("dialog");
     expect(within(drawer).getByText("Event details")).toBeInTheDocument();
