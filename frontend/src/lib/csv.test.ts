@@ -36,3 +36,22 @@ describe("toCsv", () => {
     expect(csv).toBe('note\n"He said ""go"", then left"');
   });
 });
+
+describe("spreadsheet formula injection guard (OWASP CSV injection)", () => {
+  test("prefixes string cells that begin with =, +, -, or @", () => {
+    expect(escapeCsvValue("=SUM(A1:A9)")).toBe("'=SUM(A1:A9)");
+    expect(escapeCsvValue("+1+1")).toBe("'+1+1");
+    expect(escapeCsvValue("@cmd")).toBe("'@cmd");
+    expect(escapeCsvValue("-2+3")).toBe("'-2+3");
+  });
+
+  test("leaves numeric cells and safe strings untouched", () => {
+    expect(escapeCsvValue(-42)).toBe("-42");
+    expect(escapeCsvValue(1.5)).toBe("1.5");
+    expect(escapeCsvValue("production")).toBe("production");
+  });
+
+  test("applies the guard through toCsv", () => {
+    expect(toCsv(["note"], [["=1+1"]])).toBe("note\n'=1+1");
+  });
+});

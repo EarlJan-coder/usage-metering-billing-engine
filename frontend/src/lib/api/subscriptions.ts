@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import { asObject, pickObject, pickString } from "./normalize";
+import { asObject, pickBooleanLike, pickObject, pickString } from "./normalize";
 
 /**
  * Subscription endpoint (backend-plan §6: GET /subscriptions/current).
@@ -28,7 +28,6 @@ export function normalizeSubscription(
 
   const cancelAt =
     root.cancelAtPeriodEnd ?? root.cancel_at_period_end ?? false;
-
   return {
     planName,
     status: pickString(root, "status") ?? "unknown",
@@ -42,7 +41,7 @@ export function normalizeSubscription(
     periodEnd:
       pickString(root, "currentPeriodEnd", "current_period_end", "periodEnd") ??
       null,
-    cancelAtPeriodEnd: cancelAt === true,
+    cancelAtPeriodEnd: pickBooleanLike(cancelAt),
   };
 }
 

@@ -138,10 +138,10 @@ export function DataTable<T>({
                     : undefined
                 }
                 tabIndex={onRowClick ? 0 : undefined}
-                role={onRowClick ? "button" : undefined}
-                aria-label={
-                  onRowClick ? `Open details for row ${getRowId(row)}` : undefined
-                }
+                // No role="button"/aria-label on <tr>: that strips the row
+                // from the table's semantics and replaces the announced
+                // cell text. Rows stay rows; interaction is exposed via
+                // focus + Enter/Space with the native cell content.
               >
                 {columns.map((column) => (
                   <TableCell key={column.key} className={cn(column.className)}>

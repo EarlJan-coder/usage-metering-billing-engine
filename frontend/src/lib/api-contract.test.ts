@@ -90,6 +90,14 @@ describe("auth endpoints (§6: Authentication)", () => {
     expect(path).toBe("/auth/me");
     expect((init.method ?? "GET").toUpperCase()).toBe("GET");
   });
+
+  test("forgotPassword → POST /auth/forgot-password (not in §6 — documented extra)", async () => {
+    const { path, init } = await record(() =>
+      authApi.forgotPassword({ email: "ada@example.com" }),
+    );
+    expect(path).toBe("/auth/forgot-password");
+    expect(init.method).toBe("POST");
+  });
 });
 
 describe("plans endpoint (§6: Plans)", () => {

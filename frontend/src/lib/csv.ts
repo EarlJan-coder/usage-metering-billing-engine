@@ -6,7 +6,13 @@
 
 export function escapeCsvValue(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const text = String(value);
+  let text = String(value);
+  // OWASP CSV injection: a string cell starting with =, +, -, or @ becomes
+  // an executable formula in Excel/Sheets. Prefix it with a quote so it is
+  // forced to text. Numeric cells are never prefixed (a bare -42 is safe).
+  if (typeof value === "string" && /^[=+\-@]/.test(text)) {
+    text = `'${text}`;
+  }
   if (/[",\n\r]/.test(text)) {
     return `"${text.replaceAll('"', '""')}"`;
   }

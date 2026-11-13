@@ -9,12 +9,21 @@ const currencyFormatters = new Map<string, Intl.NumberFormat>();
 function getCurrencyFormatter(currency: string): Intl.NumberFormat {
   let formatter = currencyFormatters.get(currency);
   if (!formatter) {
-    formatter = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    try {
+      formatter = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    } catch {
+      // A malformed currency code from the backend must not blank the
+      // whole page (Intl throws RangeError) — format as plain decimals.
+      formatter = new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
     currencyFormatters.set(currency, formatter);
   }
   return formatter;

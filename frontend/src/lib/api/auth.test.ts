@@ -152,3 +152,32 @@ describe("authApi endpoints (backend-plan section 6 contract)", () => {
     expect((fetchSpy.mock.calls[0]![1] as RequestInit).method).toBe("POST");
   });
 });
+
+describe("bearer token lifecycle (JWT-in-body mode, backend-plan §6)", () => {
+  test("me keeps a login-issued token when the payload omits it", async () => {
+    stubFetch(async () => okResponse({ user: { id: "u_1", email: "a@b.co" } }));
+    setBearerToken("jwt-from-login");
+
+    await authApi.me();
+
+    expect(getBearerToken()).toBe("jwt-from-login");
+  });
+
+  test("me refreshes the token when the payload carries one", async () => {
+    stubFetch(async () => okResponse({ token: "rotated" }));
+    setBearerToken("jwt-old");
+
+    await authApi.me();
+
+    expect(getBearerToken()).toBe("rotated");
+  });
+
+  test("login without a token clears a stale bearer (fresh session)", async () => {
+    stubFetch(async () => okResponse({ user: { id: "u_1", email: "a@b.co" } }));
+    setBearerToken("stale");
+
+    await authApi.login({ email: "a@b.co", password: "secret123" });
+
+    expect(getBearerToken()).toBeNull();
+  });
+});

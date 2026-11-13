@@ -7,13 +7,19 @@ afterEach(() => {
 });
 
 describe("isSafeCheckoutUrl", () => {
-  test("accepts https and http URLs", () => {
+  test("accepts https URLs and http only for local hosts", () => {
     expect(isSafeCheckoutUrl("https://checkout.stripe.com/pay/cs_test_1")).toBe(
       true,
     );
     expect(isSafeCheckoutUrl("http://localhost:3000/billing?checkout=ok")).toBe(
       true,
     );
+    expect(isSafeCheckoutUrl("http://127.0.0.1:3000/return")).toBe(true);
+  });
+
+  test("rejects plaintext http to non-local hosts (no downgrade)", () => {
+    expect(isSafeCheckoutUrl("http://evil.com/steal")).toBe(false);
+    expect(isSafeCheckoutUrl("http://192.168.1.10/steal")).toBe(false);
   });
 
   test("rejects non-http schemes and malformed values", () => {

@@ -23,10 +23,23 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
-/** Only same-origin absolute paths are accepted as post-login targets. */
+/**
+ * Only same-origin paths are accepted as post-login targets.
+ *
+ * The input is resolved against a fixed origin instead of checked with
+ * string prefixes: prefix checks miss the backslash bypass — WHATWG
+ * parsing treats `\` as `/`, so `/\evil.com` becomes `//evil.com` (another
+ * host) and would be handed straight to the router.
+ */
 export function safeNextPath(raw: string | null): string {
-  if (raw && raw.startsWith("/") && !raw.startsWith("//")) return raw;
-  return "/overview";
+  if (!raw) return "/overview";
+  try {
+    const resolved = new URL(raw, "http://localhost");
+    if (resolved.origin !== "http://localhost") return "/overview";
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return "/overview";
+  }
 }
 
 export function LoginForm() {
