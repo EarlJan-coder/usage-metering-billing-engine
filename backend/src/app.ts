@@ -5,10 +5,13 @@ import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 
 import type { AppDb } from "./db/index.js";
+import { createAdminRouter } from "./modules/admin/routes.js";
 import { createApiKeysRouter } from "./modules/api-keys/routes.js";
 import { createAuthRouter } from "./modules/auth/routes.js";
+import { createBillingRouter } from "./modules/billing/routes.js";
 import { createPlansRouter } from "./modules/plans/routes.js";
 import { createTenantsRouter } from "./modules/tenants/routes.js";
+import { createUsageRouter } from "./modules/usage-analytics/routes.js";
 import { createMeteringRouter } from "./modules/metering/routes.js";
 import { createSubscriptionsRouter } from "./modules/subscriptions/routes.js";
 import { createWebhooksRouter } from "./modules/webhooks/routes.js";
@@ -54,6 +57,9 @@ export function createApp(db: AppDb): express.Express {
   api.use("/api-keys", createApiKeysRouter(db));
   api.use("/metering", createMeteringRouter(db)); // API-key auth (§5C)
   api.use("/subscriptions", createSubscriptionsRouter(db));
+  api.use("/usage", createUsageRouter(db));
+  api.use("/billing", createBillingRouter(db));
+  api.use("/admin", createAdminRouter(db)); // platform-admin only (§6H)
   api.use("/webhooks", createWebhooksRouter(db)); // verified Stripe events (§5G)
   api.use("/plans", createPlansRouter(db)); // public catalog (Ruling 5)
   app.use("/api/v1", api);
