@@ -207,6 +207,9 @@ export async function applySubscriptionSnapshot(
     lastStripeEventAt: appliedAtUnix,
     updatedAt: new Date(),
   };
+  // record the Stripe subscription id even when the row was resolved via
+  // the tenant metadata tag — cancel/reconcile need it later
+  if (sub.id) patch.stripeSubscriptionId = sub.id;
   const priceId = sub.items?.data?.[0]?.price?.id;
   if (priceId) {
     const planByPrice = await findPlanByStripePriceId(db, priceId);
