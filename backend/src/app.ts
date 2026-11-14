@@ -10,6 +10,8 @@ import { createAuthRouter } from "./modules/auth/routes.js";
 import { createPlansRouter } from "./modules/plans/routes.js";
 import { createTenantsRouter } from "./modules/tenants/routes.js";
 import { createMeteringRouter } from "./modules/metering/routes.js";
+import { createSubscriptionsRouter } from "./modules/subscriptions/routes.js";
+import { createWebhooksRouter } from "./modules/webhooks/routes.js";
 import { setDefaultApiKeyDb } from "./services/api-key.js";
 import { globalLimiter } from "./middleware/rate-limit.js";
 import { errorHandler, notFound } from "./middleware/error.js";
@@ -35,8 +37,9 @@ export function createApp(db: AppDb): express.Express {
     app.use(pinoHttp({ logger }));
   }
 
-  // Stripe webhooks mount `express.raw()` on their own path BEFORE the JSON
-  // parser (Task 9) — signature verification needs the raw body.
+  // Stripe webhooks need the RAW body for signature verification — mounted
+  // on their own path BEFORE the JSON parser (Task 9).
+  app.use("/api/v1/webhooks/stripe", express.raw({ type: "*/*" }));
   app.use(express.json({ limit: "100kb" }));
   app.use(cookieParser());
 
@@ -50,6 +53,8 @@ export function createApp(db: AppDb): express.Express {
   api.use("/tenants", createTenantsRouter(db));
   api.use("/api-keys", createApiKeysRouter(db));
   api.use("/metering", createMeteringRouter(db)); // API-key auth (§5C)
+  api.use("/subscriptions", createSubscriptionsRouter(db));
+  api.use("/webhooks", createWebhooksRouter(db)); // verified Stripe events (§5G)
   api.use("/plans", createPlansRouter(db)); // public catalog (Ruling 5)
   app.use("/api/v1", api);
 

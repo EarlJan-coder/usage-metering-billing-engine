@@ -116,15 +116,30 @@ export async function createTenant(
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export type PlanLookup = {
+  id: string;
+  code: string;
+  name: string;
+  currency: string;
+  interval: string;
+  priceMinor: number;
+  stripePriceId: string | null;
+  active: boolean;
+};
+
 /** Resolves a plan by UUID or code (checkout accepts either — Task 9). */
 export async function findPlan(
   db: AppDb | DbOrTx,
   idOrCode: string,
-): Promise<{ id: string; code: string; priceMinor: number } | null> {
+): Promise<PlanLookup | null> {
   const select = {
     id: plans.id,
     code: plans.code,
+    name: plans.name,
+    currency: plans.currency,
+    interval: plans.interval,
     priceMinor: plans.priceMinor,
+    stripePriceId: plans.stripePriceId,
     active: plans.active,
   };
 
@@ -147,4 +162,17 @@ export async function findPlan(
 
   if (!row || !row.active) return null;
   return row;
+}
+
+/** Resolves a plan by its Stripe price id (webhook plan sync — Task 9). */
+export async function findPlanByStripePriceId(
+  db: AppDb | DbOrTx,
+  priceId: string,
+): Promise<{ id: string; code: string } | null> {
+  const rows = await db
+    .select({ id: plans.id, code: plans.code })
+    .from(plans)
+    .where(eq(plans.stripePriceId, priceId))
+    .limit(1);
+  return rows[0] ?? null;
 }
