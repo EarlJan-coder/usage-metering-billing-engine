@@ -63,10 +63,10 @@ export function utcMonthBounds(now: Date = new Date()): {
 }
 
 /**
- * Idempotent seed: plans, pricing version, demo platform-admin user with a
- * personal tenant, free subscription, and a demo API key (hash only).
+ * Plans + pricing version only — idempotent. Tests that truncate `plans`
+ * call this in beforeEach so registration always finds the free plan.
  */
-export async function seed(db: AppDb): Promise<void> {
+export async function seedPlans(db: AppDb): Promise<void> {
   for (const plan of [FREE_PLAN, PRO_PLAN]) {
     const values = { ...plan, features: [...plan.features] };
     await db
@@ -86,6 +86,14 @@ export async function seed(db: AppDb): Promise<void> {
       target: pricingVersions.version,
       set: { rates: { ...DEFAULT_RATES }, note: "initial rates" },
     });
+}
+
+/**
+ * Idempotent seed: plans, pricing version, demo platform-admin user with a
+ * personal tenant, free subscription, and a demo API key (hash only).
+ */
+export async function seed(db: AppDb): Promise<void> {
+  await seedPlans(db);
 
   const [freePlan] = await db
     .select()
