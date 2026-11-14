@@ -10,8 +10,11 @@ import {
   subscriptions,
   usageEvents,
 } from "../../db/schema.js";
+import { utcMonthBounds } from "../../db/seed.js";
+import { enqueueJob } from "../../jobs/queue.js";
 import { calculateCost } from "../cost-calculation/calculator.js";
 import { checkQuota } from "../quotas/service.js";
+import { getCurrentSubscription } from "../subscriptions/repository.js";
 import { AppError } from "../../middleware/error.js";
 import type { TrackInput } from "./schema.js";
 
@@ -90,7 +93,7 @@ export async function trackUsage(
 ): Promise<TrackResult> {
   const requestHash = hashRequest(input);
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     // 1. Claim the idempotency slot.
     const claimed = await tx
       .insert(idempotencyRecords)
@@ -231,4 +234,24 @@ export async function trackUsage(
 
     return { created: true as const, event };
   });
+
+  if (result.created) {
+    // Task 10: an accepted track arms the usage-alert check for this
+    // tenant-period (deduped by key). Queue trouble must never fail a
+    // request whose event is already committed.
+    try {
+      const current = await getCurrentSubscription(db, auth.tenantId);
+      const periodStart =
+        current?.subscription.currentPeriodStart ?? utcMonthBounds().start;
+      await enqueueJob(db, {
+        type: "usage_alerts",
+        payload: { tenantId: auth.tenantId },
+        dedupeKey: `alerts:${auth.tenantId}:${periodStart.toISOString()}`,
+      });
+    } catch {
+      // best-effort — the periodic reconcile jobs remain as backstop
+    }
+  }
+
+  return result;
 }

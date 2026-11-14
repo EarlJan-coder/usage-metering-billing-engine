@@ -17,13 +17,13 @@ import { findPlanByStripePriceId } from "../tenants/service.js";
  * format varies by API version (periods live at the top level or under
  * subscription items), so handlers read defensively.
  */
-type SubItemLike = {
+export type SubItemLike = {
   price?: { id?: string } | null;
   current_period_start?: number;
   current_period_end?: number;
 };
 
-type SubLike = {
+export type SubLike = {
   id?: string;
   status?: string;
   cancel_at_period_end?: boolean;
@@ -179,15 +179,32 @@ async function handleSubscriptionUpdated(
   const row = await resolveRow(db, sub, stripeSubscriptionId);
   if (!row) return; // not ours — recorded only
 
-  // Out-of-order guard: ignore events older than the last one applied.
-  if (row.lastStripeEventAt !== null && event.created < row.lastStripeEventAt) {
+  await applySubscriptionSnapshot(db, row, sub, event.created);
+}
+
+/**
+ * The single state-sync primitive shared by webhooks and the
+ * stripe_reconcile job: applies a Stripe subscription snapshot to the
+ * local row. Snapshots older than the last applied one (out-of-order
+ * deliveries) are ignored so state never regresses.
+ */
+export async function applySubscriptionSnapshot(
+  db: AppDb,
+  row: SubscriptionRow,
+  sub: SubLike,
+  appliedAtUnix: number,
+): Promise<void> {
+  if (
+    row.lastStripeEventAt !== null &&
+    appliedAtUnix < row.lastStripeEventAt
+  ) {
     return;
   }
 
   const patch: Parameters<typeof updateSubscriptionByTenant>[2] = {
     status: mapStatus(sub.status),
     cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
-    lastStripeEventAt: event.created,
+    lastStripeEventAt: appliedAtUnix,
     updatedAt: new Date(),
   };
   const priceId = sub.items?.data?.[0]?.price?.id;
