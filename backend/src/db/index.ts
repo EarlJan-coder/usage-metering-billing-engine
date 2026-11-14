@@ -9,6 +9,11 @@ import * as schema from "./schema.js";
 
 export type AppDb = ReturnType<typeof createDb>["db"];
 
+/** A drizzle database handle or an open transaction (register runs in tx). */
+export type DbOrTx =
+  | AppDb
+  | Parameters<Parameters<AppDb["transaction"]>[0]>[0];
+
 export function createPool(connectionString: string): pg.Pool {
   return new pg.Pool({ connectionString, max: 10 });
 }

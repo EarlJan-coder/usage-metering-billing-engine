@@ -6,6 +6,8 @@ import { pinoHttp } from "pino-http";
 
 import type { AppDb } from "./db/index.js";
 import { createAuthRouter } from "./modules/auth/routes.js";
+import { createPlansRouter } from "./modules/plans/routes.js";
+import { createTenantsRouter } from "./modules/tenants/routes.js";
 import { globalLimiter } from "./middleware/rate-limit.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 import { logger } from "./utils/logger.js";
@@ -41,6 +43,8 @@ export function createApp(db: AppDb): express.Express {
   const api = express.Router();
   api.use(globalLimiter);
   api.use("/auth", createAuthRouter(db));
+  api.use("/tenants", createTenantsRouter(db));
+  api.use("/plans", createPlansRouter(db)); // public catalog (Ruling 5)
   app.use("/api/v1", api);
 
   app.use(notFound);
