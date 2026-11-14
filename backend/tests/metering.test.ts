@@ -77,6 +77,13 @@ describe("metering track (Task 7)", () => {
   });
 
   test("ai_tokens persists the token breakdown row", async () => {
+    // 1.5M tokens exceeds the seeded free-plan quota (100k) — lift it so
+    // this test exercises persistence, not quota (quota has its own suite).
+    await db
+      .update(schema.plans)
+      .set({ aiTokensLimit: null })
+      .where(eq(schema.plans.code, "free"));
+
     const res = await request(app)
       .post("/api/v1/metering/track")
       .set("Authorization", key.header)

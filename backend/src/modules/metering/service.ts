@@ -11,6 +11,8 @@ import {
   usageEvents,
 } from "../../db/schema.js";
 import { calculateCost } from "../cost-calculation/calculator.js";
+import { checkQuota } from "../quotas/service.js";
+import { AppError } from "../../middleware/error.js";
 import type { TrackInput } from "./schema.js";
 
 const ENDPOINT = "metering/track";
@@ -126,10 +128,40 @@ export async function trackUsage(
       throw new Error("idempotency record in inconsistent state");
     }
 
-    // 2. Serialize on the tenant's subscription row (quota in Task 8).
+    // 2. Serialize on the tenant's subscription row — the quota check
+    //    below runs under this lock, so concurrent tracks cannot race
+    //    past the limit (Review Focus 2).
     await tx.execute(
       sql`select id from subscriptions where tenant_id = ${auth.tenantId} for update`,
     );
+
+    // 2b. Quota gate (Task 8). Reject BEFORE pricing/inserting: a rejected
+    //     track writes no event, and the rollback releases the idempotency
+    //     claim so a later retry may still succeed.
+    const projected =
+      input.type === "ai_tokens"
+        ? {
+            apiCalls: 0,
+            tokens: (input.inputTokens ?? 0) + (input.outputTokens ?? 0),
+          }
+        : { apiCalls: input.quantity ?? 1, tokens: 0 };
+
+    const decision = await checkQuota(tx, auth, projected);
+    if (!decision.permitted) {
+      if (decision.reason === "payment_required") {
+        throw new AppError(
+          402,
+          "payment_required",
+          "Subscription payment is required to record usage",
+        );
+      }
+      throw new AppError(
+        429,
+        "quota_exceeded",
+        `Plan ${decision.scope} quota exceeded`,
+        { scope: decision.scope, used: decision.used, limit: decision.limit },
+      );
+    }
 
     // 3. Price it.
     const isTokens = input.type === "ai_tokens";
