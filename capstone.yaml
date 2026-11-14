@@ -1,0 +1,53 @@
+# Capstone project manifest — Usage Metering & Billing Engine
+name: usage-metering-billing-engine
+description: Multi-tenant usage metering and billing engine — idempotent metering, quota enforcement, versioned cost calculation, Stripe test-mode billing with verified webhooks, and a Postgres-backed background job queue.
+stack:
+  - typescript
+  - express
+  - postgresql
+  - drizzle-orm
+  - zod
+  - stripe
+  - vitest
+features:
+  - idempotent usage metering with Idempotency-Key replay semantics
+  - quota enforcement with 429/402 and Retry-After headers
+  - versioned exact-arithmetic cost calculation (BigInt minor units, half-up rounding)
+  - cookie sessions plus API keys (sha256 storage, one-time plaintext)
+  - verified Stripe webhooks with delivery dedupe and out-of-order guard
+  - Postgres-backed job queue with SKIP LOCKED claiming and exponential backoff
+  - usage alerts at 80% and 100% of plan limits
+  - monthly usage rollups and Stripe state reconciliation jobs
+  - tenant isolation on every route (IDOR-safe 404s)
+  - platform admin metrics, tenant list, and webhook delivery state
+endpoints:
+  - GET /healthz
+  - POST /api/v1/auth/register
+  - POST /api/v1/auth/login
+  - POST /api/v1/auth/logout
+  - GET /api/v1/auth/me
+  - POST /api/v1/auth/forgot-password
+  - GET /api/v1/tenants
+  - GET /api/v1/tenants/:id
+  - POST /api/v1/tenants
+  - GET /api/v1/plans
+  - GET /api/v1/api-keys
+  - POST /api/v1/api-keys
+  - DELETE /api/v1/api-keys/:id
+  - POST /api/v1/metering/track
+  - GET /api/v1/subscriptions/current
+  - POST /api/v1/subscriptions/checkout
+  - POST /api/v1/subscriptions/cancel
+  - GET /api/v1/billing/summary
+  - POST /api/v1/webhooks/stripe
+  - GET /api/v1/usage/summary
+  - GET /api/v1/usage
+  - GET /api/v1/usage/history
+  - GET /api/v1/admin/tenants
+  - GET /api/v1/admin/metrics
+  - GET /api/v1/admin/webhooks
+evidence:
+  - EVIDENCE.md
+  - BUILDLOG.md
+  - backend/docs/API.md
+  - backend/tests

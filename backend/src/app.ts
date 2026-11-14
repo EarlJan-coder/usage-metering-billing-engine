@@ -52,20 +52,85 @@ export function createApp(db: AppDb): express.Express {
 
   const api = express.Router();
   api.use(globalLimiter);
-  api.use("/auth", createAuthRouter(db));
-  api.use("/tenants", createTenantsRouter(db));
-  api.use("/api-keys", createApiKeysRouter(db));
-  api.use("/metering", createMeteringRouter(db)); // API-key auth (§5C)
-  api.use("/subscriptions", createSubscriptionsRouter(db));
-  api.use("/usage", createUsageRouter(db));
-  api.use("/billing", createBillingRouter(db));
-  api.use("/admin", createAdminRouter(db)); // platform-admin only (§6H)
-  api.use("/webhooks", createWebhooksRouter(db)); // verified Stripe events (§5G)
-  api.use("/plans", createPlansRouter(db)); // public catalog (Ruling 5)
+  useRouter(api, "/auth", createAuthRouter(db));
+  useRouter(api, "/tenants", createTenantsRouter(db));
+  useRouter(api, "/api-keys", createApiKeysRouter(db));
+  useRouter(api, "/metering", createMeteringRouter(db)); // API-key auth (§5C)
+  useRouter(api, "/subscriptions", createSubscriptionsRouter(db));
+  useRouter(api, "/usage", createUsageRouter(db));
+  useRouter(api, "/billing", createBillingRouter(db));
+  useRouter(api, "/admin", createAdminRouter(db)); // platform-admin only (§6H)
+  useRouter(api, "/webhooks", createWebhooksRouter(db)); // verified Stripe (§5G)
+  useRouter(api, "/plans", createPlansRouter(db)); // public catalog (Ruling 5)
   app.use("/api/v1", api);
+  routerMounts.set(api, "/api/v1");
 
   app.use(notFound);
   app.use(errorHandler);
 
   return app;
+}
+
+/** One registered HTTP route: the method and its full, concrete path. */
+export type RouteSpec = { method: string; path: string };
+
+/**
+ * Mount path per router instance, captured at `use()` time so the route
+ * walker below can reconstruct full paths from the live Express stack
+ * without duplicating any route declarations.
+ */
+const routerMounts = new WeakMap<object, string>();
+
+function useRouter(api: express.Router, mountPath: string, router: express.Router): void {
+  routerMounts.set(router, mountPath);
+  api.use(mountPath, router);
+}
+
+type StackLayer = {
+  route?: {
+    path: string | string[];
+    methods: Record<string, boolean>;
+  };
+  handle?: { stack?: StackLayer[] };
+};
+
+function joinRoutePath(prefix: string, routePath: string): string {
+  const combined = routePath === "/" ? prefix : `${prefix}${routePath}`;
+  return combined === "" ? "/" : combined;
+}
+
+/**
+ * Walks the Express router stack and returns every registered route —
+ * used by tests/docs.test.ts to keep `docs/API.md` honest (Task 12).
+ */
+export function listRoutes(app: express.Express): RouteSpec[] {
+  const out: RouteSpec[] = [];
+  const root = (app as unknown as { router: { stack: StackLayer[] } }).router;
+
+  const walk = (stack: StackLayer[], prefix: string): void => {
+    for (const layer of stack) {
+      if (layer.route) {
+        const paths = Array.isArray(layer.route.path)
+          ? layer.route.path
+          : [layer.route.path];
+        for (const [method, enabled] of Object.entries(layer.route.methods)) {
+          if (!enabled || method === "_all") continue;
+          for (const routePath of paths) {
+            out.push({
+              method: method.toUpperCase(),
+              path: joinRoutePath(prefix, routePath),
+            });
+          }
+        }
+      } else if (layer.handle?.stack) {
+        const mount = routerMounts.get(layer.handle) ?? "";
+        walk(layer.handle.stack, `${prefix}${mount}`);
+      }
+    }
+  };
+
+  walk(root.stack, "");
+  return out.sort((a, b) =>
+    a.path === b.path ? a.method.localeCompare(b.method) : a.path.localeCompare(b.path),
+  );
 }
