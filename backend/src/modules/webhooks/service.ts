@@ -60,11 +60,13 @@ const VALID_STATUSES = new Set([
 function mapStatus(
   status: string | undefined,
 ): "active" | "trialing" | "past_due" | "unpaid" | "canceled" {
-  if (!status) return "active";
+  // conservative defaults: an unknown/unpaid state must never grant
+  // paid-plan quota (review #5)
+  if (!status) return "past_due";
   if (VALID_STATUSES.has(status)) {
     return status as "active" | "trialing" | "past_due" | "unpaid" | "canceled";
   }
-  if (status === "incomplete") return "trialing";
+  if (status === "incomplete") return "past_due"; // initial payment pending
   if (status === "paused") return "past_due";
   return "canceled"; // incomplete_expired and anything terminal
 }
@@ -127,6 +129,17 @@ async function handleCheckoutCompleted(
     );
   }
 
+  const current = await getCurrentSubscription(db, tenantId);
+  if (!current) {
+    throw new Error(`no subscription row for tenant ${tenantId}`);
+  }
+  // Out-of-order guard (review #4): a redelivered/old checkout event must
+  // never overwrite newer state or rewind the guard.
+  const lastApplied = current.subscription.lastStripeEventAt;
+  if (lastApplied !== null && event.created < lastApplied) {
+    return;
+  }
+
   let status: string | undefined = "active";
   let cancelAtPeriodEnd = false;
   let period = { start: null as Date | null, end: null as Date | null };
@@ -151,7 +164,7 @@ async function handleCheckoutCompleted(
     status: mapStatus(status),
     stripeSubscriptionId,
     cancelAtPeriodEnd,
-    lastStripeEventAt: event.created,
+    lastStripeEventAt: Math.max(lastApplied ?? 0, event.created),
     updatedAt: new Date(),
   };
   if (customerId) patch.stripeCustomerId = customerId;

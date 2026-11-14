@@ -95,6 +95,12 @@ export async function seedPlans(db: AppDb): Promise<void> {
 export async function seed(db: AppDb): Promise<void> {
   await seedPlans(db);
 
+  // Demo credentials are development conveniences only — never provision
+  // them against a production database (review #9).
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
   const [freePlan] = await db
     .select()
     .from(plans)

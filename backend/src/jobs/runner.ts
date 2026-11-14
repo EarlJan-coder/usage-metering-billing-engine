@@ -2,7 +2,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 
 import type { AppDb } from "../db/index.js";
 import { backgroundJobs } from "../db/schema.js";
-import { backoffDelayMs } from "./queue.js";
+import { backoffDelayMs, enqueueJobOnce } from "./queue.js";
 import { stripeReconcileHandler } from "./handlers/stripe-reconcile.js";
 import { monthlyRollupHandler } from "./handlers/monthly-rollup.js";
 import { usageAlertsHandler } from "./handlers/usage-alerts.js";
@@ -35,7 +35,8 @@ export async function runOnce(db: AppDb): Promise<number> {
   const claimedIds = await db.transaction(async (tx) => {
     const result = (await tx.execute(sql`
       select id from background_jobs
-      where status in ('pending', 'failed') and run_at <= now()
+      where (status in ('pending', 'failed') and run_at <= now())
+         or (status = 'processing' and updated_at < now() - interval '15 minutes')
       order by run_at
       limit 25
       for update skip locked
@@ -96,12 +97,41 @@ export async function runOnce(db: AppDb): Promise<number> {
 }
 
 let workerTimer: ReturnType<typeof setInterval> | null = null;
+let lastScheduleMs = 0;
+
+/**
+ * Recurring job scheduler (review #3): one stripe_reconcile per hour and
+ * one monthly_rollup per month, dedupe-armed across worker restarts.
+ */
+export async function scheduleRecurringJobs(db: AppDb): Promise<void> {
+  const now = new Date();
+  const hourKey = now.toISOString().slice(0, 13); // 2026-11-14T13
+  const monthKey = now.toISOString().slice(0, 7); // 2026-11
+
+  await enqueueJobOnce(db, {
+    type: "stripe_reconcile",
+    dedupeKey: `stripe_reconcile:${hourKey}`,
+    payload: {},
+  });
+  await enqueueJobOnce(db, {
+    type: "monthly_rollup",
+    dedupeKey: `monthly_rollup:${monthKey}`,
+    payload: {},
+  });
+}
 
 /** Polls the queue on an interval. Safe to call twice — idempotent. */
 export function startWorker(db: AppDb, intervalMs = 5_000): void {
   if (workerTimer) return;
+  const tick = async (): Promise<void> => {
+    if (Date.now() - lastScheduleMs > 60_000) {
+      lastScheduleMs = Date.now();
+      await scheduleRecurringJobs(db);
+    }
+    await runOnce(db);
+  };
   workerTimer = setInterval(() => {
-    void runOnce(db).catch(() => undefined);
+    void tick().catch(() => undefined);
   }, intervalMs);
   // never hold the process open just for the worker
   workerTimer.unref?.();

@@ -17,7 +17,12 @@ export type AuthContext = {
 
 /** Server-side hash of the raw session token (Ruling 11). */
 export function hashToken(token: string): string {
-  const secret = process.env.SESSION_SECRET ?? "test-session-secret-0123456789";
+  // no fallback secret (review #10): a known default would let anyone
+  // with a DB leak forge session hashes
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.length < 8) {
+    throw new Error("SESSION_SECRET is not configured");
+  }
   return createHash("sha256").update(`${token}:${secret}`).digest("hex");
 }
 

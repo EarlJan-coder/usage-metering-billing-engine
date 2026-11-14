@@ -61,6 +61,7 @@ See [`.env.example`](.env.example). Highlights:
 | `STRIPE_SECRET_KEY` | no | absent → billing endpoints answer `503 stripe_not_configured` |
 | `STRIPE_WEBHOOK_SECRET` | no | absent → `/webhooks/stripe` refuses deliveries |
 | `STRIPE_SUCCESS_URL` / `STRIPE_CANCEL_URL` | no | checkout redirects |
+| `TRUST_PROXY` | no | proxy hops (default 1) so rate limiting sees real client IPs |
 | `WORKER_DISABLED` | no | set `1` to run the API without the background worker |
 
 ## Architecture

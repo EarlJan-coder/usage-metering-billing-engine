@@ -14,9 +14,9 @@ with `…` only where noted; most are verbatim.
 > backend@0.1.0 test
 > vitest run
 
- Test Files  19 passed (19)
-      Tests  121 passed (121)
-   Duration  54.10s
+ Test Files  22 passed (22)
+      Tests  136 passed (136)
+   Duration  62.54s
 
 > backend@0.1.0 typecheck
 > tsc -p tsconfig.json --noEmit
@@ -27,12 +27,13 @@ with `…` only where noted; most are verbatim.
 build: OK (tsc exit 0)
 ```
 
-The 19 suites cover: app scaffold, database schema/constraints, auth,
+The 22 suites cover: app scaffold, database schema/constraints, auth,
 security middleware, tenants, plans, API keys, cost engine, metering,
 metering concurrency, quota, quota concurrency, Stripe subscriptions,
 Stripe webhooks, background jobs, usage analytics, billing, platform
-admin, and docs/deliverables integrity (docs ↔ routes ↔ error codes kept
-in lockstep by `tests/docs.test.ts`).
+admin, docs/deliverables integrity (docs ↔ routes ↔ error codes kept in
+lockstep by `tests/docs.test.ts`), cross-tenant isolation, webhook
+replay, and the full-journey acceptance suite.
 
 ## 2. Metering → quota → cost → analytics flow
 

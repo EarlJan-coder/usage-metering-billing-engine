@@ -4,6 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { AppDb } from "../../db/index.js";
 import { apiKeys } from "../../db/schema.js";
 import { requireAuth } from "../../middleware/auth.js";
+import { originCheck } from "../../middleware/origin-check.js";
 import { AppError } from "../../middleware/error.js";
 import { validate } from "../../middleware/validate.js";
 import {
@@ -48,7 +49,11 @@ export function createApiKeysRouter(db: AppDb): Router {
     }
   });
 
-  router.post("/", validate(createApiKeySchema), async (req, res, next) => {
+  router.post(
+    "/",
+    originCheck,
+    validate(createApiKeySchema),
+    async (req, res, next) => {
     try {
       const { plaintext, keyPrefix, keyHash } = generateApiKey();
       const [row] = await db
@@ -68,14 +73,14 @@ export function createApiKeysRouter(db: AppDb): Router {
     }
   });
 
-  router.delete("/:id", async (req, res, next) => {
+  router.delete("/:id", originCheck, async (req, res, next) => {
     try {
       const rows = await db
         .update(apiKeys)
         .set({ status: "revoked", revokedAt: new Date() })
         .where(
           and(
-            eq(apiKeys.id, req.params.id!),
+            eq(apiKeys.id, String(req.params.id)),
             eq(apiKeys.tenantId, req.auth!.tenantId),
           ),
         )

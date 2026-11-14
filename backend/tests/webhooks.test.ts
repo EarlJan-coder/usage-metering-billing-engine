@@ -286,4 +286,32 @@ describe("stripe webhooks (Task 9)", () => {
     expect(body.planName).toBe("Free");
     expect(body.status).toBe("active");
   });
+
+  test("a stale checkout.session.completed never rewinds state (review #4)", async () => {
+    // a fresher update lands first
+    const fresh = await deliver(
+      subscriptionUpdatedEvent(1700000200, { status: "past_due" }, "evt_fresh_update"),
+    );
+    expect(fresh.status).toBe(200);
+
+    const before = await current();
+    expect(before.status).toBe("past_due");
+
+    // then a redelivered OLD checkout event (different id → not deduped)
+    const stale = await deliver(checkoutEvent(1700000100, "evt_stale_checkout"));
+    expect(stale.status).toBe(200); // recorded, but must not be applied
+
+    const after = await current();
+    expect(after).toEqual(before);
+  });
+
+  test("incomplete Stripe status maps to past_due, never paid quota (review #5)", async () => {
+    const res = await deliver(
+      subscriptionUpdatedEvent(1700000300, { status: "incomplete" }, "evt_incomplete"),
+    );
+    expect(res.status).toBe(200);
+
+    const body = await current();
+    expect(body.status).toBe("past_due"); // payment not confirmed → 402 path
+  });
 });

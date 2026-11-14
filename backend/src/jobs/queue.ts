@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+
 import type { AppDb } from "../db/index.js";
 import { backgroundJobs } from "../db/schema.js";
 
@@ -44,4 +46,25 @@ export async function enqueueJob(
     .returning({ id: backgroundJobs.id });
 
   return rows[0]?.id ?? null;
+}
+
+/**
+ * Enqueues a recurring job at most once per dedupeKey — a row in ANY
+ * status blocks re-arming, so a scheduled job runs once per period even
+ * across worker restarts (review #3).
+ */
+export async function enqueueJobOnce(
+  db: AppDb,
+  input: EnqueueJobInput,
+): Promise<string | null> {
+  if (!input.dedupeKey) return enqueueJob(db, input);
+
+  const existing = await db
+    .select({ id: backgroundJobs.id })
+    .from(backgroundJobs)
+    .where(eq(backgroundJobs.dedupeKey, input.dedupeKey))
+    .limit(1);
+  if (existing.length > 0) return null;
+
+  return enqueueJob(db, input);
 }

@@ -34,6 +34,21 @@ export const trackSchema = z
           message: "ai_tokens requires at least one token field",
         });
       }
+      // cached input is a SUBSET of input (Ruling 4) — a cached-only
+      // payload would otherwise meter quantity 0 while still costing
+      // money (review #8)
+      if (value.cachedInputTokens !== undefined) {
+        if (
+          value.inputTokens === undefined ||
+          value.cachedInputTokens > value.inputTokens
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["cachedInputTokens"],
+            message: "cachedInputTokens must be a subset of inputTokens",
+          });
+        }
+      }
     }
     // api_call with no quantity defaults to 1 in the service.
   });

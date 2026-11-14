@@ -268,4 +268,74 @@ describe("quota enforcement (Task 8)", () => {
     const res = await track({ type: "api_call", quantity: 1 }, headerB);
     expect(res.status).toBe(201);
   });
+
+  test("fails closed: a missing subscription row gets free-plan limits, never unlimited (review Critical #1)", async () => {
+    await db
+      .delete(subscriptions)
+      .where(eq(subscriptions.tenantId, tenantId));
+    await seedUsage(tenantId, planId, { apiCalls: 1_000 });
+
+    const res = await track({ type: "api_call", quantity: 1 });
+    expect(res.status).toBe(429);
+    expect(res.body.error.code).toBe("quota_exceeded");
+    expect(res.body.error.details).toMatchObject({
+      scope: "api_calls",
+      used: 1000,
+      limit: 1000,
+    });
+  });
+
+  test("fails closed: no subscription AND no free plan → 500, never unlimited", async () => {
+    await db
+      .delete(subscriptions)
+      .where(eq(subscriptions.tenantId, tenantId));
+    await db.delete(plans);
+
+    const res = await track({ type: "api_call", quantity: 1 });
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe("internal_error");
+  });
+
+  test("stale paid period rolls forward and still enforces quota (review Critical #2)", async () => {
+    const [pro] = await db.select().from(plans).where(eq(plans.code, "pro"));
+    await db
+      .update(plans)
+      .set({ apiCallsLimit: 1_000, aiTokensLimit: null })
+      .where(eq(plans.id, pro!.id));
+    await db
+      .update(subscriptions)
+      .set({
+        planId: pro!.id,
+        // period ended 30 days ago — a lost renewal webhook must not
+        // disable quota enforcement
+        currentPeriodStart: new Date(Date.now() - 60 * 24 * 3600 * 1000),
+        currentPeriodEnd: new Date(Date.now() - 30 * 24 * 3600 * 1000),
+      })
+      .where(eq(subscriptions.tenantId, tenantId));
+
+    await seedUsage(tenantId, planId, {
+      apiCalls: 999,
+      createdAt: new Date(Date.now() - 24 * 3600 * 1000),
+      idPrefix: "stale-period",
+    });
+
+    const at = await track({ type: "api_call", quantity: 1 });
+    expect(at.status).toBe(201); // 999 + 1 = 1000 exactly at the limit
+
+    const over = await track({ type: "api_call", quantity: 1 });
+    expect(over.status).toBe(429);
+    expect(over.body.error.details).toMatchObject({
+      scope: "api_calls",
+      used: 1000,
+      limit: 1000,
+    });
+
+    // the period was rolled forward to cover "now"
+    const [sub] = await db
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.tenantId, tenantId));
+    expect(sub!.currentPeriodEnd!.getTime()).toBeGreaterThan(Date.now());
+    expect(sub!.currentPeriodStart!.getTime()).toBeLessThan(Date.now());
+  });
 });

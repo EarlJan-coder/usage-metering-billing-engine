@@ -31,6 +31,13 @@ export function createApp(db: AppDb): express.Express {
   const app = express();
 
   app.disable("x-powered-by");
+  // one proxy hop by default so rate limiting sees real client IPs behind
+  // nginx/TLS (review #11); override with TRUST_PROXY
+  const trustProxy = process.env.TRUST_PROXY ?? "1";
+  app.set(
+    "trust proxy",
+    /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy,
+  );
   app.use(helmet());
 
   const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";

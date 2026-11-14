@@ -6,7 +6,11 @@ import { createApp } from "../src/app.js";
 import { seedPlans, utcMonthBounds } from "../src/db/seed.js";
 import * as schema from "../src/db/schema.js";
 import { backoffDelayMs, enqueueJob } from "../src/jobs/queue.js";
-import { registerJobHandler, runOnce } from "../src/jobs/runner.js";
+import {
+  registerJobHandler,
+  runOnce,
+  scheduleRecurringJobs,
+} from "../src/jobs/runner.js";
 import { closeTestDb, db, resetDb } from "./helpers/db.js";
 import { registerUser } from "./helpers/auth.js";
 import { generateApiKey } from "../src/services/api-key.js";
@@ -366,5 +370,53 @@ describe("background jobs (Task 10)", () => {
       status: "pending",
       dedupeKey: `alerts:${tenantId}:${periodIso}`,
     });
+  });
+
+  test("scheduleRecurringJobs arms reconcile + rollup exactly once per period (review #3)", async () => {
+    await scheduleRecurringJobs(db);
+    await scheduleRecurringJobs(db); // second call must be a no-op
+
+    const rows = await db.select().from(backgroundJobs);
+    expect(rows).toHaveLength(2);
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const hourKey = new Date().toISOString().slice(0, 13);
+    expect(rows.map((r) => `${r.type}:${r.dedupeKey}`).sort()).toEqual([
+      `monthly_rollup:monthly_rollup:${monthKey}`,
+      `stripe_reconcile:stripe_reconcile:${hourKey}`,
+    ]);
+  });
+
+  test("stuck processing jobs are recovered; fresh ones are not stolen (review #7)", async () => {
+    const runs: number[] = [];
+    registerJobHandler("test_recover", async () => {
+      runs.push(1);
+    });
+
+    // a job claimed 20 minutes ago by a crashed worker
+    const id = await enqueueJob(db, { type: "test_recover" });
+    await db
+      .update(backgroundJobs)
+      .set({
+        status: "processing",
+        updatedAt: new Date(Date.now() - 20 * 60_000),
+      })
+      .where(eq(backgroundJobs.id, id!));
+
+    expect(await runOnce(db)).toBe(1);
+    expect(runs).toHaveLength(1);
+    const [job] = await db
+      .select()
+      .from(backgroundJobs)
+      .where(eq(backgroundJobs.id, id!));
+    expect(job!.status).toBe("completed");
+
+    // a freshly claimed job is left for its owner
+    const id2 = await enqueueJob(db, { type: "test_recover" });
+    await db
+      .update(backgroundJobs)
+      .set({ status: "processing" })
+      .where(eq(backgroundJobs.id, id2!));
+    expect(await runOnce(db)).toBe(0);
+    expect(runs).toHaveLength(1);
   });
 });
