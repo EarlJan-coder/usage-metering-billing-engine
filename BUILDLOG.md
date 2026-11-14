@@ -135,6 +135,34 @@ Cross-tenant isolation matrix, webhook replay/concurrency races,
 metering→quota→cost→analytics end-to-end, frontend contract suite kept
 green.
 
+## Whole-branch code review & fix pass
+
+A fresh reviewer examined the full `c97dda7..9d1befe` range (98 files) in
+seven passes and verified the claims by running the suites. Verdict:
+"With fixes". Both Criticals and all nine Importants were fixed on
+`fix/backend-review-findings` with regression tests:
+
+- **Critical — quota failed open**: a tenant without a subscription row
+  metered unlimited. Now fails CLOSED to the free plan's limits (and
+  registration refuses to create tenants when no free plan is seeded);
+  a per-tenant advisory lock closes the no-row serialization gap.
+- **Critical — stale paid period disabled quota**: a lost renewal
+  webhook left the usage window in the past, so usage summed to zero.
+  Any elapsed period now rolls forward inside the lock.
+- Important: `monthly_rollup`/`stripe_reconcile` are now actually
+  scheduled (hourly / monthly, dedupe-armed); checkout webhook events
+  obey the out-of-order guard; `incomplete` maps to `past_due` (never
+  paid quota before payment); failed-webhook retries claim atomically;
+  jobs stuck in `processing` are recovered after a visibility timeout;
+  cached input must be a subset of input tokens; the seed's demo
+  credentials are refused under `NODE_ENV=production`; session hashing
+  no longer has a fallback secret; `trust proxy` keeps rate limiting
+  honest behind one proxy hop.
+- Minor taken: concurrent-register duplicate race now answers `409`,
+  origin check applied consistently to all cookie-authenticated writes,
+  plan limit `0` no longer treated as unlimited for alerts, dead
+  dynamic imports removed, `.env.example`/README/EVIDENCE refreshed.
+
 ## Key rulings (from the design ledger)
 
 1. Cookie sessions (`sid`, sha256-hashed) for dashboard auth; API-key

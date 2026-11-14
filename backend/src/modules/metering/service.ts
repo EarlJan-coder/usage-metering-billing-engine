@@ -131,9 +131,12 @@ export async function trackUsage(
       throw new Error("idempotency record in inconsistent state");
     }
 
-    // 2. Serialize on the tenant's subscription row — the quota check
-    //    below runs under this lock, so concurrent tracks cannot race
-    //    past the limit (Review Focus 2).
+    // 2. Serialize on the tenant: an advisory lock keyed on the tenant id
+    //    (the subscription row lock alone locks NOTHING when the row is
+    //    missing — review Critical #1) plus the row lock itself.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext('metering:' || ${auth.tenantId}))`,
+    );
     await tx.execute(
       sql`select id from subscriptions where tenant_id = ${auth.tenantId} for update`,
     );

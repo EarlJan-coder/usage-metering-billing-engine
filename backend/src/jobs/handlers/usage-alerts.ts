@@ -55,7 +55,8 @@ export async function usageAlertsHandler(
     ];
 
     for (const { metric, used, limit } of metrics) {
-      if (!limit || limit <= 0) continue; // null = unlimited
+      if (limit === null || limit < 0) continue; // null = unlimited
+      if (used <= 0) continue;
       for (const { threshold, severity } of THRESHOLDS) {
         if (used * 100 < limit * threshold) continue;
         await db

@@ -56,10 +56,24 @@ export async function register(
   const passwordHash = bcrypt.hashSync(input.password, 10);
 
   const result = await db.transaction(async (tx) => {
-    const [user] = await tx
-      .insert(users)
-      .values({ name: input.name, email: input.email, passwordHash })
-      .returning();
+    let user: typeof users.$inferSelect | undefined;
+    try {
+      [user] = await tx
+        .insert(users)
+        .values({ name: input.name, email: input.email, passwordHash })
+        .returning();
+    } catch (err) {
+      // concurrent registration can race past the pre-check (review minor)
+      const code = (err as { cause?: { code?: string } }).cause?.code;
+      if (code === "23505") {
+        throw new AppError(
+          409,
+          "email_taken",
+          "An account with this email already exists",
+        );
+      }
+      throw err;
+    }
     if (!user) throw new AppError(500, "internal_error", "Failed to create user");
 
     const [tenant] = await tx
@@ -79,16 +93,22 @@ export async function register(
       .from(plans)
       .where(eq(plans.code, "free"))
       .limit(1);
-    if (freePlan) {
-      const { start, end } = utcMonthBounds();
-      await tx.insert(subscriptions).values({
-        tenantId: tenant.id,
-        planId: freePlan.id,
-        status: "active",
-        currentPeriodStart: start,
-        currentPeriodEnd: end,
-      });
+    if (!freePlan) {
+      // fail closed: a tenant must never exist without quota limits
+      throw new AppError(
+        500,
+        "internal_error",
+        "Free plan is not configured — run npm run seed",
+      );
     }
+    const { start, end } = utcMonthBounds();
+    await tx.insert(subscriptions).values({
+      tenantId: tenant.id,
+      planId: freePlan.id,
+      status: "active",
+      currentPeriodStart: start,
+      currentPeriodEnd: end,
+    });
 
     const { token } = await issueSession(tx, user.id, tenant.id);
     return { user, tenant, token };

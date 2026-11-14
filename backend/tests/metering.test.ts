@@ -238,4 +238,25 @@ describe("metering track (Task 7)", () => {
       .where(eq(usageEvents.tenantId, tenantId));
     expect(rows).toHaveLength(0);
   });
+
+  test("cached input must be a subset of input tokens (review #8)", async () => {
+    const noInput = await request(app)
+      .post("/api/v1/metering/track")
+      .set("Authorization", key.header)
+      .set("Idempotency-Key", idem())
+      .send({ type: "ai_tokens", cachedInputTokens: 100 });
+    expect(noInput.status).toBe(400);
+    expect(noInput.body.error.code).toBe("validation_error");
+
+    const tooMuchCached = await request(app)
+      .post("/api/v1/metering/track")
+      .set("Authorization", key.header)
+      .set("Idempotency-Key", idem())
+      .send({ type: "ai_tokens", inputTokens: 50, cachedInputTokens: 100 });
+    expect(tooMuchCached.status).toBe(400);
+    expect(tooMuchCached.body.error.code).toBe("validation_error");
+
+    // nothing was metered by either invalid payload
+    expect(await eventCount()).toBe(0);
+  });
 });

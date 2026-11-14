@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import type { AppDb } from "../../db/index.js";
 import { requireAuth } from "../../middleware/auth.js";
+import { originCheck } from "../../middleware/origin-check.js";
 import { AppError } from "../../middleware/error.js";
 import { validate } from "../../middleware/validate.js";
 import { createTenantSchema } from "./schema.js";
@@ -52,7 +53,11 @@ export function createTenantsRouter(db: AppDb): Router {
     }
   });
 
-  router.post("/", validate(createTenantSchema), async (req, res, next) => {
+  router.post(
+    "/",
+    originCheck,
+    validate(createTenantSchema),
+    async (req, res, next) => {
     try {
       const tenant = await service.createTenant(db, req.auth!.userId, req.body);
       res.status(201).json({

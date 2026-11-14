@@ -93,16 +93,22 @@ export async function createTenant(
       .from(plans)
       .where(eq(plans.code, "free"))
       .limit(1);
-    if (freePlan) {
-      const { start, end } = utcMonthBounds();
-      await tx.insert(subscriptions).values({
-        tenantId: tenant.id,
-        planId: freePlan.id,
-        status: "active",
-        currentPeriodStart: start,
-        currentPeriodEnd: end,
-      });
+    if (!freePlan) {
+      // fail closed: a tenant must never exist without quota limits
+      throw new AppError(
+        500,
+        "internal_error",
+        "Free plan is not configured — run npm run seed",
+      );
     }
+    const { start, end } = utcMonthBounds();
+    await tx.insert(subscriptions).values({
+      tenantId: tenant.id,
+      planId: freePlan.id,
+      status: "active",
+      currentPeriodStart: start,
+      currentPeriodEnd: end,
+    });
 
     return {
       id: tenant.id,

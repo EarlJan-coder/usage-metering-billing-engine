@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import type { AppDb } from "../../db/index.js";
@@ -78,11 +78,22 @@ export function createWebhooksRouter(db: AppDb): Router {
           res.status(200).json({ received: true, duplicate: true });
           return;
         }
-        await db
+        const reclaimed = await db
           .update(webhookEvents)
           .set({ status: "received", error: null, receivedAt: new Date() })
-          .where(eq(webhookEvents.id, existing.id));
-        claimId = existing.id;
+          .where(
+            and(
+              eq(webhookEvents.id, existing.id),
+              eq(webhookEvents.status, "failed"),
+            ),
+          )
+          .returning({ id: webhookEvents.id });
+        if (reclaimed.length === 0) {
+          // a concurrent retry claimed the row first — treat as duplicate
+          res.status(200).json({ received: true, duplicate: true });
+          return;
+        }
+        claimId = reclaimed[0]!.id;
       }
 
       try {

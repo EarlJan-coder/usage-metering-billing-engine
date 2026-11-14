@@ -132,8 +132,6 @@ export async function getSummary(db: AppDb, tenantId: string) {
   const totals = totalsOf(buckets);
   const series = zeroFill("daily", periodStart, windowEnd, buckets);
 
-  const { usageAlerts } = await import("../../db/schema.js");
-  const { desc, eq } = await import("drizzle-orm");
   const alerts = await db
     .select({
       id: usageAlerts.id,
