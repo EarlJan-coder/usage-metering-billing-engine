@@ -9,6 +9,7 @@ import { createApiKeysRouter } from "./modules/api-keys/routes.js";
 import { createAuthRouter } from "./modules/auth/routes.js";
 import { createPlansRouter } from "./modules/plans/routes.js";
 import { createTenantsRouter } from "./modules/tenants/routes.js";
+import { createMeteringRouter } from "./modules/metering/routes.js";
 import { setDefaultApiKeyDb } from "./services/api-key.js";
 import { globalLimiter } from "./middleware/rate-limit.js";
 import { errorHandler, notFound } from "./middleware/error.js";
@@ -48,6 +49,7 @@ export function createApp(db: AppDb): express.Express {
   api.use("/auth", createAuthRouter(db));
   api.use("/tenants", createTenantsRouter(db));
   api.use("/api-keys", createApiKeysRouter(db));
+  api.use("/metering", createMeteringRouter(db)); // API-key auth (§5C)
   api.use("/plans", createPlansRouter(db)); // public catalog (Ruling 5)
   app.use("/api/v1", api);
 
