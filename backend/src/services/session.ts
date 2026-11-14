@@ -3,13 +3,10 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 
 import { subscriptions, tenantMembers, users } from "../db/schema.js";
-import type { AppDb } from "../db/index.js";
+import type { DbOrTx } from "../db/index.js";
 import { sessions } from "../db/schema.js";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-/** A drizzle database handle or an open transaction (register runs in tx). */
-export type DbOrTx = AppDb | Parameters<Parameters<AppDb["transaction"]>[0]>[0];
 
 export type AuthContext = {
   userId: string;
