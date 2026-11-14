@@ -1,12 +1,15 @@
 import request from "supertest";
-import { describe, expect, test } from "vitest";
+import { afterAll, describe, expect, test } from "vitest";
 
 import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config/env.js";
+import { closeTestDb, db } from "./helpers/db.js";
 
 describe("app scaffolding (Task 1)", () => {
+  afterAll(closeTestDb);
+
   test("GET /healthz returns 200 { status: \"ok\" }", async () => {
-    const app = createApp();
+    const app = createApp(db);
     const res = await request(app).get("/healthz");
 
     expect(res.status).toBe(200);
@@ -14,7 +17,7 @@ describe("app scaffolding (Task 1)", () => {
   });
 
   test("unknown route returns the 404 error envelope", async () => {
-    const app = createApp();
+    const app = createApp(db);
     const res = await request(app).get("/api/v1/definitely-missing");
 
     expect(res.status).toBe(404);
