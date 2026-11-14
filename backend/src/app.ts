@@ -5,9 +5,11 @@ import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 
 import type { AppDb } from "./db/index.js";
+import { createApiKeysRouter } from "./modules/api-keys/routes.js";
 import { createAuthRouter } from "./modules/auth/routes.js";
 import { createPlansRouter } from "./modules/plans/routes.js";
 import { createTenantsRouter } from "./modules/tenants/routes.js";
+import { setDefaultApiKeyDb } from "./services/api-key.js";
 import { globalLimiter } from "./middleware/rate-limit.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 import { logger } from "./utils/logger.js";
@@ -19,6 +21,7 @@ import { logger } from "./utils/logger.js";
  * database while server.ts points it at DATABASE_URL.
  */
 export function createApp(db: AppDb): express.Express {
+  setDefaultApiKeyDb(db);
   const app = express();
 
   app.disable("x-powered-by");
@@ -44,6 +47,7 @@ export function createApp(db: AppDb): express.Express {
   api.use(globalLimiter);
   api.use("/auth", createAuthRouter(db));
   api.use("/tenants", createTenantsRouter(db));
+  api.use("/api-keys", createApiKeysRouter(db));
   api.use("/plans", createPlansRouter(db)); // public catalog (Ruling 5)
   app.use("/api/v1", api);
 
