@@ -55,6 +55,10 @@ export function errorHandler(
 
   if (err instanceof AppError) {
     if (err.status >= 500) logger.error({ err }, "request failed");
+    if (err.status === 429) {
+      // Quota/rate rejections tell the client when to come back.
+      res.setHeader("Retry-After", String((err.details as { retryAfter?: number } | undefined)?.retryAfter ?? 60));
+    }
     res.status(err.status).json({
       error: {
         message: err.message,
